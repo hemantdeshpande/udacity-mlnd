@@ -1,0 +1,10 @@
+smartcab project files:
+1. report.html      
+2. agent.py      
+3. smartcab.ipynb      
+4.logs/sim_no-learning.csv       
+5.logs/sim_no-learning.txt     
+6.logs/sim_default-learning.csv     
+7.logs/sim_default-learning.txt     
+8.logs/sim_improved-learning.csv     
+9.logs/sim_default-learning.txt     
