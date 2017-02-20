@@ -23,8 +23,9 @@ class LearningAgent(Agent):
         ## TO DO ##
         ###########
         # Set any additional class parameters as needed
-        self.alpha = 0.75 
-        self.trial = 0.0 #trial number, used in epsilon decay function
+        #self.alpha = 0.75 
+        self.trial_count = 0 #trial number, used in epsilon decay function
+        self.trial_t0 = 0 #variable used for decay calculation
 
 
     def reset(self, destination=None, testing=False):
@@ -43,14 +44,23 @@ class LearningAgent(Agent):
         # If 'testing' is True, set epsilon and alpha to 0
         if self.learning == True:
             if self.epsilon > 0.0:
-                #self.epsilon -= 0.05
-                self.epsilon = 1.0 - 2.0*self.trial**2.0/10000.0 # epsilon = 1-2t^2/10000, total 100 trials for epsilon < 0.05
-                self.trial += 1.0 
+                #self.epsilon -= 0.00475
+                # epsilon = 1-2t^2/10000, total 70 trials for epsilon < 0.05
+                #self.epsilon = 1.0 - 1.0*float(self.trial_count)**2.0/10000.0 
+                #sigmoid function
+                #epsilon = 1 - (1/(1+math.exp(-k*alpha*(counter-t0))))
+                #modified sigmoid
+                if(len(self.Q) < 24 and self.trial_count < 500):
+                    self.trial_t0 = self.trial_count
+                self.epsilon = 1.0 - 1.0*float(self.trial_count-self.trial_t0)**2.0/10000.0    
+                self.trial_count += 1 
+                print "Learnig Trials: Count: ", self.trial_count, " epsilon: ", self.epsilon 
         #if testing == True: Does not work, use self.epsilon > 0 test instead
             else:
                 # testing trials
                 self.epsilon = 0
                 self.alpha = 0
+                print "Testing Trials "
         #else do nothing for random testing
 
         return None
@@ -84,13 +94,14 @@ class LearningAgent(Agent):
         ###########
         # Calculate the maximum Q-value of all actions for a given state
         if state in self.Q:
-            Qa = self.Q[state] 
-            maxQ = max(Qa, key=Qa.get)
+            #Qa = self.Q[state] 
+            #maxQ = max(Qa, key=Qa.get) # this returns actual action
+            # but project requirement is to return a value, so changed
+            maxQ = max(self.Q[state].values())
         else:
             #state does not yet exist in Q table, so choose no action for safety
             maxQ = None
-        #print "Max Q action: ", maxQ 
-
+ 
         return maxQ 
 
 
@@ -106,9 +117,9 @@ class LearningAgent(Agent):
         actions = {'forward':0.0, 'left': 0.0, 'right':0.0, None:0.0}
         if self.learning == True:
             #make sure learning trials i.e. self.epsilon > 0 test
-            if self.epsilon > 0:
-                if self.state not in self.Q:
-                    self.Q.update({state:actions})
+            ##if self.epsilon > 0:
+            if self.state not in self.Q:
+                self.Q.update({state:actions})
                 #print self.Q
             #else: testing trials
 
@@ -133,20 +144,26 @@ class LearningAgent(Agent):
 
         if self.learning == True:
             #make sure learning trials, self.epsilon > 0 test 
-            if self.epsilon > 0:
-                print "Learnig Trials "                
-                if random.random() > self.epsilon and self.state in self.Q:
-                    #check if state in not in Q table, so that we do not waste a trial to learn
-                    # though this will strictly change random action probability of epsilon
-                    action = self.get_maxQ(self.state)
-                    print "Max Q action: ", action
-                else:
-                    #action = random.choice(['forward', 'left', 'right', None])
-                    action = random.choice([self.next_waypoint, None])
-                    print "Random Choice action: ", action
+            ##if self.epsilon > 0:
+            ##    print "Learnig Trials "                
+            if random.random() > self.epsilon and state in self.Q:
+                #check if state is not in Q table, so that we do not waste a trial to learn
+                # though this will strictly change random action probability of epsilon
+                if self.get_maxQ(state) is not None:
+                    print "state ", state
+                    actionlist = [k for k, v in self.Q[state].iteritems() if v == self.get_maxQ(state)]
+                    action = random.choice(actionlist)
+                    print "# of possible actions and Max Q action: ", len(actionlist), action
             else:
-                print "Testing Trials "
-                action = self.get_maxQ(self.state)
+                #action = random.choice(['forward', 'left', 'right', None])
+                action = random.choice([self.next_waypoint, None])
+                print "Random Choice action: ", action
+            ##else: #of elf.epsilon > 0
+            ##    print "Testing Trials "
+            ##    if self.get_maxQ(state) is not None:
+            ##        actionlist = [k for k, v in self.Q[state].iteritems() if v == self.get_maxQ(state)]
+            ##        action = random.choice(actionlist)
+            ##        print "Possible actions and Max Q action: ", len(actionlist), action
         else: 
             print "Random Choice Trials"
             action = random.choice(['forward', 'left', 'right', None])
@@ -165,10 +182,10 @@ class LearningAgent(Agent):
         #   Use only the learning rate 'alpha' (do not use the discount factor 'gamma')
         if self.learning == True:
             #make sure learning trials, self.epsilon > 0 test 
-            if self.epsilon > 0:
-                if state in self.Q:
-                    Qt = self.Q[state][action]
-                    self.Q[state][action] = Qt + self.alpha*(reward-Qt)
+            ##if self.epsilon > 0:
+            if state in self.Q:
+                Qt = self.Q[state][action]
+                self.Q[state][action] = Qt + self.alpha*(reward-Qt)
                 #print "self.Q: ", self.Q
             #else: testing trials, do nothing
             
@@ -223,14 +240,14 @@ def run():
     #   log_metrics  - set to True to log trial and simulation results to /logs
     #   optimized    - set to True to change the default log file name
     #sim = Simulator(env)
-    sim = Simulator(env, update_delay=0.01, log_metrics=True, display=False, optimized=True)
+    sim = Simulator(env, update_delay=0.005, log_metrics=True, display=False, optimized=True)
     
     ##############
     # Run the simulator
     # Flags:
     #   tolerance  - epsilon tolerance before beginning testing, default is 0.05 
     #   n_test     - discrete number of testing trials to perform, default is 0
-    sim.run(n_test=10)
+    sim.run(n_test=100)
 
 
 if __name__ == '__main__':
